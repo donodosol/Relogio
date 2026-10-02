@@ -26,13 +26,14 @@
   @keyframes flip { 0% { transform:rotateX(70deg); opacity:.3; } 100% { transform:rotateX(0); opacity:1; } }
   #weather { display:flex; align-items:center; gap:3vmax; font-size:4.6vmax; }
   #temp { font-size:8vmax; font-weight:700; color:var(--warm); }
+  #local { color:var(--dim); font-size:3.6vmax; font-weight:600; margin-bottom:.4vmax; }
   #desc { font-weight:600; }
   #more { color:var(--dim); font-size:3.6vmax; margin-top:.4vmax; }
   #err { color:var(--dim); font-size:3.6vmax; }
   @media (orientation:portrait) {
     .card { width:40vmin; height:46vmin; font-size:27vmin; border-radius:3vmin; }
     #clock { gap:4vmin; } #date { font-size:6vmin; }
-    #weather { font-size:6vmin; gap:4vmin; } #temp { font-size:13vmin; } #more { font-size:4.6vmin; }
+    #weather { font-size:6vmin; gap:4vmin; } #temp { font-size:13vmin; } #more { font-size:4.6vmin; } #local { font-size:4.6vmin; }
   }
 </style>
 </head>
@@ -43,12 +44,12 @@
     <div class="card" id="h">--</div>
     <div class="card" id="m">--</div>
   </div>
-  <div id="weather"><div id="temp"></div><div><div id="desc"></div><div id="more"></div></div></div>
+  <div id="weather"><div id="temp"></div><div><div id="local"></div><div id="desc"></div><div id="more"></div></div></div>
 </div>
 
 <script>
 // ---- Configuração: altera aqui ----
-var CIDADE = { lat: 38.7223, lon: -9.1393 }; // Lisboa
+var CIDADE = { nome: "Lisboa", lat: 38.7223, lon: -9.1393 };
 var FORMATO_24H = true;                       // false para AM/PM
 var INTERVALO_CLIMA_MIN = 15;
 var MODO_NOITE = { de: 0, ate: 7 };           // escurece entre estas horas
@@ -96,6 +97,7 @@ function clima(){
     $("more").textContent = "Nova tentativa em breve";
   });
 }
+$("local").textContent = "📍 " + CIDADE.nome;
 tick(); clima();
 setInterval(tick, 1000);
 setInterval(clima, INTERVALO_CLIMA_MIN * 60000);
