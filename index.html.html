@@ -31,8 +31,10 @@
   #more { color:var(--dim); font-size:3.6vmax; margin-top:.4vmax; }
   #err { color:var(--dim); font-size:3.6vmax; }
   [hidden] { display:none !important; }
-  #alBtn { position:fixed; right:calc(env(safe-area-inset-right) + 2vmax); bottom:calc(env(safe-area-inset-bottom) + 1.5vmax);
-    background:none; border:0; font-size:6vmax; opacity:.45; color:var(--text); }
+  #alBtn { position:fixed; right:calc(env(safe-area-inset-right) + 1.5vmax); top:calc(env(safe-area-inset-top) + 1vmax);
+    background:none; border:0; font-size:5vmax; line-height:1.1; opacity:.5; color:var(--text); text-align:right; font-family:inherit; }
+  #alBtn span { display:block; }
+  #alInfo { font-size:2.6vmax; color:var(--dim); }
   #panel, #ring { position:fixed; left:0; right:0; top:0; bottom:0; display:flex; flex-direction:column;
     align-items:center; justify-content:center; gap:2.2vmax; text-align:center; background:rgba(10,12,15,.96); }
   #ring { background:rgba(10,12,15,.98); z-index:5; }
@@ -59,7 +61,7 @@
   <div id="weather"><div id="temp"></div><div><div id="local"></div><div id="desc"></div><div id="more"></div></div></div>
 </div>
 
-<button id="alBtn" aria-label="Despertador">⏰</button>
+<button id="alBtn" aria-label="Despertador"><span>⏰</span><span id="alInfo"></span></button>
 <div id="panel" hidden>
   <div class="big" style="font-size:26px;font-weight:700">Despertador</div>
   <div class="row" style="align-items:flex-end">
@@ -105,7 +107,8 @@ function tick(){
   var d = new Date(), h = d.getHours();
   var hh = FORMATO_24H ? h : (h % 12 || 12);
   setCard("h", pad(hh)); setCard("m", pad(d.getMinutes()));
-  $("date").textContent = d.toLocaleDateString("pt-PT", { weekday:"long", day:"numeric", month:"long" }) + textoAlarme();
+  $("date").textContent = d.toLocaleDateString("pt-PT", { weekday:"long", day:"numeric", month:"long" }) + "";
+  $("alInfo").textContent = textoAlarme();
   verificarAlarme(d);
   var noite = MODO_NOITE.de < MODO_NOITE.ate ? (h >= MODO_NOITE.de && h < MODO_NOITE.ate)
                                               : (h >= MODO_NOITE.de || h < MODO_NOITE.ate);
@@ -139,7 +142,7 @@ audio.onerror = function(){ if (tocando) iniciarBeep(); };
 function guardar(){ try { localStorage.setItem("alarme", JSON.stringify({ hora:alarme.hora, fim:alarme.fim, ativo:alarme.ativo })); } catch(e){} }
 function carregar(){ try { var s = JSON.parse(localStorage.getItem("alarme") || "null");
   if (s) { alarme.hora = s.hora || ""; alarme.fim = s.fim || ""; alarme.ativo = !!s.ativo; } } catch(e){} }
-function textoAlarme(){ return (alarme.ativo && alarme.hora) ? "  ⏰ " + alarme.hora + (alarme.fim ? "–" + alarme.fim : "") + (desbloqueado ? "" : " 🔇") : ""; }
+function textoAlarme(){ return (alarme.ativo && alarme.hora) ? alarme.hora + (alarme.fim ? "–" + alarme.fim : "") + (desbloqueado ? "" : " 🔇") : ""; }
 
 function resolverUrl(){
   if (radioUrl) return Promise.resolve(radioUrl);
