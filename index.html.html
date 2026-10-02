@@ -30,6 +30,18 @@
   #desc { font-weight:600; }
   #more { color:var(--dim); font-size:3.6vmax; margin-top:.4vmax; }
   #err { color:var(--dim); font-size:3.6vmax; }
+  [hidden] { display:none !important; }
+  #alBtn { position:fixed; right:calc(env(safe-area-inset-right) + 2vmax); bottom:calc(env(safe-area-inset-bottom) + 1.5vmax);
+    background:none; border:0; font-size:6vmax; opacity:.45; color:var(--text); }
+  #panel, #ring { position:fixed; left:0; right:0; top:0; bottom:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:2.2vmax; text-align:center; background:rgba(10,12,15,.96); }
+  #ring { background:rgba(10,12,15,.98); z-index:5; }
+  #panel input, #panel button, #ring button { font-size:22px; padding:10px 22px; border-radius:12px; border:0;
+    background:var(--card); color:var(--text); font-family:inherit; }
+  #alOn, #ring .main { background:var(--warm) !important; color:#111 !important; font-weight:700; }
+  #panel .row { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
+  #alMsg { color:var(--dim); font-size:16px; max-width:80%; }
+  #ring .big { font-size:7vmax; font-weight:700; }
   @media (orientation:portrait) {
     .card { width:40vmin; height:46vmin; font-size:27vmin; border-radius:3vmin; }
     #clock { gap:4vmin; } #date { font-size:6vmin; }
@@ -45,6 +57,22 @@
     <div class="card" id="m">--</div>
   </div>
   <div id="weather"><div id="temp"></div><div><div id="local"></div><div id="desc"></div><div id="more"></div></div></div>
+</div>
+
+<button id="alBtn" aria-label="Despertador">⏰</button>
+<div id="panel" hidden>
+  <div class="big" style="font-size:26px;font-weight:700">Despertador</div>
+  <div class="row" style="align-items:flex-end">
+    <div><div id="lb1" style="color:#8b95a1;font-size:15px;margin-bottom:6px">Ligar às</div><input type="time" id="alTime" value="07:00"></div>
+    <div><div style="color:#8b95a1;font-size:15px;margin-bottom:6px">Desligar às</div><input type="time" id="alFim" value="08:00"></div>
+  </div>
+  <div class="row"><button id="alOn">Ativar</button><button id="alTest">Testar rádio</button><button id="alClose">Fechar</button></div>
+  <div id="alMsg"></div>
+</div>
+<div id="ring" hidden>
+  <div class="big">⏰ Despertador</div>
+  <div style="font-size:22px;color:#8b95a1">📻 Oxigénio 102.6</div>
+  <div class="row" style="display:flex;gap:14px"><button class="main" id="alStop">Parar</button><button id="alSnooze">Soneca 9 min</button></div>
 </div>
 
 <script>
@@ -77,7 +105,8 @@ function tick(){
   var d = new Date(), h = d.getHours();
   var hh = FORMATO_24H ? h : (h % 12 || 12);
   setCard("h", pad(hh)); setCard("m", pad(d.getMinutes()));
-  $("date").textContent = d.toLocaleDateString("pt-PT", { weekday:"long", day:"numeric", month:"long" });
+  $("date").textContent = d.toLocaleDateString("pt-PT", { weekday:"long", day:"numeric", month:"long" }) + textoAlarme();
+  verificarAlarme(d);
   var noite = MODO_NOITE.de < MODO_NOITE.ate ? (h >= MODO_NOITE.de && h < MODO_NOITE.ate)
                                               : (h >= MODO_NOITE.de || h < MODO_NOITE.ate);
   $("app").className = noite ? "night" : "";
@@ -97,6 +126,80 @@ function clima(){
     $("more").textContent = "Nova tentativa em breve";
   });
 }
+// ---- Despertador com rádio ----
+var RADIO = { uuid: "42c17a78-76d2-4c25-9350-ad8b6df014c3", urlDireto: "" }; // Oxigénio 102.6 (RadioBrowser)
+var SONECA_MIN = 9;
+var SILENCIO = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+var alarme = { hora:"", fim:"", ativo:false, ultimo:"" };
+var sonecaHora = "", radioUrl = RADIO.urlDireto || "", desbloqueado = false, tocando = false;
+var audio = new Audio(), ctx = null, beepTimer = null;
+audio.preload = "none";
+audio.onerror = function(){ if (tocando) iniciarBeep(); };
+
+function guardar(){ try { localStorage.setItem("alarme", JSON.stringify({ hora:alarme.hora, fim:alarme.fim, ativo:alarme.ativo })); } catch(e){} }
+function carregar(){ try { var s = JSON.parse(localStorage.getItem("alarme") || "null");
+  if (s) { alarme.hora = s.hora || ""; alarme.fim = s.fim || ""; alarme.ativo = !!s.ativo; } } catch(e){} }
+function textoAlarme(){ return (alarme.ativo && alarme.hora) ? "  ⏰ " + alarme.hora + (alarme.fim ? "–" + alarme.fim : "") + (desbloqueado ? "" : " 🔇") : ""; }
+
+function resolverUrl(){
+  if (radioUrl) return Promise.resolve(radioUrl);
+  return fetch("https://de1.api.radio-browser.info/json/url/" + RADIO.uuid)
+    .then(function(r){ return r.json(); })
+    .then(function(j){ var u = (j && j.url) || "";
+      if (u.indexOf("http:") === 0) u = "https:" + u.slice(5);
+      radioUrl = u; return u; });
+}
+function desbloquear(){
+  if (tocando) return;
+  try { audio.src = SILENCIO; audio.play().then(function(){ desbloqueado = true; tick(); }).catch(function(){}); } catch(e){}
+  try { var AC = window.AudioContext || window.webkitAudioContext;
+    if (!ctx && AC) ctx = new AC(); if (ctx && ctx.resume) ctx.resume(); } catch(e){}
+}
+function beep(){ if (!ctx) return; var o = ctx.createOscillator(), g = ctx.createGain();
+  o.frequency.value = 880; g.gain.value = 0.4; o.connect(g); g.connect(ctx.destination);
+  o.start(); o.stop(ctx.currentTime + 0.3); }
+function iniciarBeep(){ if (beepTimer) return; beep(); beepTimer = setInterval(beep, 800); }
+function pararBeep(){ if (beepTimer) { clearInterval(beepTimer); beepTimer = null; } }
+
+function tocar(){
+  tocando = true; $("ring").hidden = false; $("panel").hidden = true; $("app").className = "";
+  resolverUrl().then(function(u){ if (!u) throw 0; audio.src = u; return audio.play(); })
+    .catch(function(){ iniciarBeep(); });
+  setTimeout(function(){ if (tocando && (audio.paused || audio.currentTime < 1)) iniciarBeep(); }, 10000);
+}
+function parar(){ tocando = false; pararBeep(); audio.pause(); audio.src = SILENCIO; $("ring").hidden = true; }
+function soneca(){ parar(); var d = new Date(Date.now() + SONECA_MIN * 60000);
+  sonecaHora = pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+function verificarAlarme(d){
+  var agora = pad(d.getHours()) + ":" + pad(d.getMinutes()), chave = d.toDateString() + agora;
+  if (tocando) { if (alarme.ativo && alarme.fim && agora === alarme.fim && chave !== alarme.ultimo) parar(); return; }
+  if (chave === alarme.ultimo) return;
+  if ((alarme.ativo && agora === alarme.hora) || agora === sonecaHora) { alarme.ultimo = chave; sonecaHora = ""; tocar(); }
+}
+function painel(){
+  $("alOn").textContent = alarme.ativo ? "Desativar" : "Ativar";
+  $("alTime").value = alarme.hora || "07:00";
+  $("alFim").value = alarme.fim || "08:00";
+  $("alMsg").textContent = alarme.ativo ? "Liga às " + alarme.hora + (alarme.fim ? " e desliga às " + alarme.fim : "") + ". Mantém esta página aberta, com o ecrã ligado e ligado à corrente." : "";
+}
+$("alBtn").onclick = function(){ $("panel").hidden = !$("panel").hidden; painel(); };
+$("alClose").onclick = function(){ $("panel").hidden = true; };
+$("alOn").onclick = function(){
+  var v = $("alTime").value;
+  if (!v) { $("alMsg").textContent = "Escolhe a hora."; return; }
+  if (alarme.ativo) { alarme.ativo = false; }
+  else { alarme.hora = v; alarme.fim = $("alFim").value || ""; alarme.ativo = true; desbloquear(); resolverUrl().catch(function(){}); }
+  guardar(); painel(); tick();
+};
+$("alTime").onchange = function(){ if (alarme.ativo && this.value) { alarme.hora = this.value; guardar(); painel(); tick(); } };
+$("alFim").onchange = function(){ if (alarme.ativo) { alarme.fim = this.value || ""; guardar(); painel(); tick(); } };
+$("alTest").onclick = function(){ desbloquear(); sonecaHora = ""; setTimeout(tocar, 50); };
+$("alStop").onclick = parar;
+$("alSnooze").onclick = soneca;
+document.addEventListener("touchend", desbloquear);
+carregar(); painel();
+// ---------------------------------
+
 $("local").textContent = "📍 " + CIDADE.nome;
 tick(); clima();
 setInterval(tick, 1000);
