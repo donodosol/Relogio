@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<title>Relógio</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Relógio">
+<style>
+  :root { --bg:#0a0c0f; --card:#1b2027; --text:#f1f3f5; --dim:#8b95a1; --warm:#f2b84b; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { height:100%; background:var(--bg); color:var(--text);
+    font-family:-apple-system,"Helvetica Neue",Arial,sans-serif; overflow:hidden; -webkit-user-select:none; }
+  #app { height:100%; display:flex; flex-direction:column; justify-content:space-evenly; align-items:center;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    transition:opacity 1s; }
+  #app.night { opacity:.45; }
+  #date { font-size:4.6vmax; font-weight:600; letter-spacing:.02em; color:var(--dim); text-transform:capitalize; }
+  #clock { display:flex; align-items:center; gap:2.5vmax; }
+  .card { position:relative; background:var(--card); border-radius:2vmax; width:19vmax; height:24vmax;
+    display:flex; align-items:center; justify-content:center; font-size:19vmax; font-weight:700; line-height:1;
+    font-variant-numeric:tabular-nums; }
+  .card::after { content:""; position:absolute; left:0; right:0; top:50%; height:.5vmax; background:var(--bg); }
+  .card.flip { animation:flip .5s ease-out; }
+  @keyframes flip { 0% { transform:rotateX(70deg); opacity:.3; } 100% { transform:rotateX(0); opacity:1; } }
+  #weather { display:flex; align-items:center; gap:3vmax; font-size:4.6vmax; }
+  #temp { font-size:8vmax; font-weight:700; color:var(--warm); }
+  #desc { font-weight:600; }
+  #more { color:var(--dim); font-size:3.6vmax; margin-top:.4vmax; }
+  #err { color:var(--dim); font-size:3.6vmax; }
+  @media (orientation:portrait) {
+    .card { width:30vmin; height:38vmin; font-size:30vmin; border-radius:3vmin; }
+    #clock { gap:4vmin; } #date { font-size:6vmin; }
+    #weather { font-size:6vmin; gap:4vmin; } #temp { font-size:13vmin; } #more { font-size:4.6vmin; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="date">&nbsp;</div>
+  <div id="clock">
+    <div class="card" id="h">--</div>
+    <div class="card" id="m">--</div>
+  </div>
+  <div id="weather"><div id="temp"></div><div><div id="desc"></div><div id="more"></div></div></div>
+</div>
+
+<script>
+// ---- Configuração: altera aqui ----
+var CIDADE = { lat: 38.7223, lon: -9.1393 }; // Lisboa
+var FORMATO_24H = true;                       // false para AM/PM
+var INTERVALO_CLIMA_MIN = 15;
+var MODO_NOITE = { de: 0, ate: 7 };           // escurece entre estas horas
+// -----------------------------------
+
+var CODIGOS = {
+  0:["Céu limpo","☀️"],1:["Pouco nublado","🌤️"],2:["Parcialmente nublado","⛅"],3:["Nublado","☁️"],
+  45:["Nevoeiro","🌫️"],48:["Nevoeiro","🌫️"],51:["Chuvisco","🌦️"],53:["Chuvisco","🌦️"],55:["Chuvisco","🌦️"],
+  61:["Chuva fraca","🌧️"],63:["Chuva","🌧️"],65:["Chuva forte","🌧️"],66:["Chuva gelada","🌧️"],67:["Chuva gelada","🌧️"],
+  71:["Neve","🌨️"],73:["Neve","🌨️"],75:["Neve forte","🌨️"],77:["Granizo","🌨️"],
+  80:["Aguaceiros","🌦️"],81:["Aguaceiros","🌦️"],82:["Aguaceiros fortes","🌧️"],
+  85:["Aguaceiros de neve","🌨️"],86:["Aguaceiros de neve","🌨️"],
+  95:["Trovoada","⛈️"],96:["Trovoada com granizo","⛈️"],99:["Trovoada com granizo","⛈️"]
+};
+function $(id){ return document.getElementById(id); }
+function pad(n){ return n < 10 ? "0" + n : "" + n; }
+
+var ultimo = { h:"", m:"" };
+function setCard(id, val){
+  if (ultimo[id] === val) return;
+  var el = $(id); el.textContent = val; ultimo[id] = val;
+  el.classList.remove("flip"); void el.offsetWidth; el.classList.add("flip");
+}
+function tick(){
+  var d = new Date(), h = d.getHours();
+  var hh = FORMATO_24H ? h : (h % 12 || 12);
+  setCard("h", pad(hh)); setCard("m", pad(d.getMinutes()));
+  $("date").textContent = d.toLocaleDateString("pt-PT", { weekday:"long", day:"numeric", month:"long" });
+  var noite = MODO_NOITE.de < MODO_NOITE.ate ? (h >= MODO_NOITE.de && h < MODO_NOITE.ate)
+                                              : (h >= MODO_NOITE.de || h < MODO_NOITE.ate);
+  $("app").className = noite ? "night" : "";
+}
+function clima(){
+  var url = "https://api.open-meteo.com/v1/forecast?latitude=" + CIDADE.lat + "&longitude=" + CIDADE.lon +
+    "&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min," +
+    "precipitation_probability_max&timezone=auto&forecast_days=1";
+  fetch(url).then(function(r){ return r.json(); }).then(function(j){
+    var c = j.current, d = j.daily, info = CODIGOS[c.weather_code] || ["", "🌡️"];
+    $("temp").textContent = Math.round(c.temperature_2m) + "°";
+    $("desc").textContent = info[1] + " " + info[0];
+    $("more").textContent = "Mín " + Math.round(d.temperature_2m_min[0]) + "° · Máx " + Math.round(d.temperature_2m_max[0]) +
+      "° · Chuva " + d.precipitation_probability_max[0] + "% · Vento " + Math.round(c.wind_speed_10m) + " km/h";
+  }).catch(function(){
+    $("desc").textContent = "Sem ligação ao clima";
+    $("more").textContent = "Nova tentativa em breve";
+  });
+}
+tick(); clima();
+setInterval(tick, 1000);
+setInterval(clima, INTERVALO_CLIMA_MIN * 60000);
+</script>
+</body>
+</html>
