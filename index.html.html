@@ -18,8 +18,8 @@
   #app.night { opacity:.45; }
   #date { font-size:4.6vmax; font-weight:600; letter-spacing:.02em; color:var(--dim); text-transform:capitalize; }
   #clock { display:flex; align-items:center; gap:2.5vmax; }
-  .card { position:relative; background:var(--card); border-radius:2vmax; width:19vmax; height:24vmax;
-    display:flex; align-items:center; justify-content:center; font-size:19vmax; font-weight:700; line-height:1;
+  .card { position:relative; background:var(--card); border-radius:2vmax; width:25vmax; height:27vmax;
+    display:flex; align-items:center; justify-content:center; font-size:17vmax; font-weight:700; line-height:1;
     font-variant-numeric:tabular-nums; }
   .card::after { content:""; position:absolute; left:0; right:0; top:50%; height:.5vmax; background:var(--bg); }
   .card.flip { animation:flip .5s ease-out; }
@@ -30,7 +30,7 @@
   #more { color:var(--dim); font-size:3.6vmax; margin-top:.4vmax; }
   #err { color:var(--dim); font-size:3.6vmax; }
   @media (orientation:portrait) {
-    .card { width:30vmin; height:38vmin; font-size:30vmin; border-radius:3vmin; }
+    .card { width:40vmin; height:46vmin; font-size:27vmin; border-radius:3vmin; }
     #clock { gap:4vmin; } #date { font-size:6vmin; }
     #weather { font-size:6vmin; gap:4vmin; } #temp { font-size:13vmin; } #more { font-size:4.6vmin; }
   }
